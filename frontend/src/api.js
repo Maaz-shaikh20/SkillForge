@@ -64,7 +64,11 @@ export async function uploadResume(file) {
 // GITHUB
 // ===================================================
 
-export async function getUserRepositories(username, accessToken) {
+export async function getGitHubUserProfile(username, accessToken = null) {
+    return request(`/github/user/${encodeURIComponent(username)}`, {}, accessToken);
+}
+
+export async function getUserRepositories(username, accessToken = null) {
     return request(`/github/repos/${username}`, {}, accessToken);
 }
 

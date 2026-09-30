@@ -1,5 +1,6 @@
 const express = require("express");
 const {
+    getGitHubUserProfile,
     getUserRepositories,
     getRepositoryCommits,
     calculateOwnership,
@@ -8,7 +9,6 @@ const {
     analyzeTechnologies,
     matchTechnologiesToFiles,
     calculateContributionDepth,
-
 } = require("../services/githubService");
 
 // Both functions come from the same module — import them together.
@@ -34,25 +34,17 @@ router.get(
             } = req.params;
 
             const accessToken =
-                req.headers.authorization?.replace(
-                    "Bearer ",
-                    ""
-                );
+                req.headers.authorization?.replace("Bearer ", "") ||
+                process.env.GITHUB_TOKEN ||
+                "";
 
-            
-            if (!accessToken) {
-                return res.status(401).json({
-                    message: "GitHub access token is required"
-                });
-            }
-
-           const result = await verifySkillInRepository(
-    owner,
-    repo,
-    skill,
-    owner,
-    accessToken
-);
+            const result = await verifySkillInRepository(
+                owner,
+                repo,
+                skill,
+                owner,
+                accessToken
+            );
 
             res.json(result);
 
@@ -68,15 +60,30 @@ router.get(
 );
 
 
+// route to fetch public profile details of a GitHub user
+router.get("/user/:username", async (req, res) => {
+    try {
+        const { username } = req.params;
+        const accessToken = req.headers.authorization?.replace("Bearer ", "") || process.env.GITHUB_TOKEN || "";
+        const profile = await getGitHubUserProfile(username, accessToken);
+        res.json(profile);
+    } catch (error) {
+        console.error("GET USER PROFILE ERROR:", error.message);
+        res.status(error.message.includes("404") ? 404 : 500).json({
+            message: error.message.includes("404") ? `GitHub user '${req.params.username}' not found` : "Failed to fetch GitHub profile",
+            error: error.message
+        });
+    }
+});
+
 // route to fetch all repositories of a specific user
 router.get("/repos/:username", async (req, res) => {
     try {
         const { username } = req.params;
-
-        // Read token from header — without it we hit GitHub as an
-        // anonymous user (60 req/hour limit, no private repo access).
         const accessToken =
-            req.headers.authorization?.replace("Bearer ", "");
+            req.headers.authorization?.replace("Bearer ", "") ||
+            process.env.GITHUB_TOKEN ||
+            "";
 
         const repositories = await getUserRepositories(username, accessToken);
 
@@ -180,23 +187,16 @@ router.get(
             } = req.params;
 
             const accessToken =
-                req.headers.authorization?.replace(
-                    "Bearer ",
-                    ""
-                );
+                req.headers.authorization?.replace("Bearer ", "") ||
+                process.env.GITHUB_TOKEN ||
+                "";
 
-            if (!accessToken) {
-                return res.status(401).json({
-                    message: "GitHub access token is required"
-                });
-            }
-
-           const contributionAnalysis = await analyzeRepository(
-                        owner,
-                        repo,
-                         username,
-                        accessToken
-             );
+            const contributionAnalysis = await analyzeRepository(
+                owner,
+                repo,
+                username,
+                accessToken
+            );
 
             const technologies =await analyzeTechnologies(
                           owner,
@@ -247,18 +247,9 @@ router.post(
             } = req.body;
 
             const accessToken =
-                req.headers.authorization?.replace(
-                    "Bearer ",
-                    ""
-                );
-
-            // Check token
-            if (!accessToken) {
-                return res.status(401).json({
-                    message:
-                        "GitHub access token is required"
-                });
-            }
+                req.headers.authorization?.replace("Bearer ", "") ||
+                process.env.GITHUB_TOKEN ||
+                "";
 
             // Check skills
             if (
@@ -308,11 +299,7 @@ router.post(
             const { username } = req.params;
             const { skills }   = req.body;
 
-            const accessToken = req.headers.authorization?.replace("Bearer ", "");
-
-            if (!accessToken) {
-                return res.status(401).json({ message: "GitHub access token is required" });
-            }
+            const accessToken = req.headers.authorization?.replace("Bearer ", "") || process.env.GITHUB_TOKEN || "";
 
             if (!Array.isArray(skills) || skills.length === 0) {
                 return res.status(400).json({ message: "skills must be a non-empty array" });

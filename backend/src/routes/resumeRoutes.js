@@ -4,7 +4,8 @@ const multer = require("multer");
 const {
     extractResumeText,
     extractResumeSections,
-    extractSkillClaims
+    extractSkillClaims,
+    extractGitHubInfo
 } = require("../services/resumeService");
 
 const router = express.Router();
@@ -35,11 +36,15 @@ router.post(
             const skillClaims =
     extractSkillClaims(text);
 
+            const detectedGithub =
+    extractGitHubInfo(text);
+
             res.json({
                 filename: req.file.originalname,
                 text,
                 sections,
-                skillClaims
+                skillClaims,
+                detectedGithub
             });
 
         } catch (error) {

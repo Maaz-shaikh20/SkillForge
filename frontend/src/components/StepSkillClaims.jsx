@@ -112,6 +112,25 @@ export default function StepSkillClaims({ resumeData, onNext, onBack }) {
         Extracted from your resume. Deselect any skills you don&apos;t want verified.
       </p>
 
+      {resumeData?.detectedGithub && (
+        <div style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 8,
+          padding: "6px 14px",
+          background: "var(--cyan-dim)",
+          border: "1px solid var(--border-2)",
+          borderRadius: "999px",
+          fontSize: "0.8rem",
+          fontFamily: "var(--font-mono)",
+          color: "var(--cyan)",
+          marginBottom: 16
+        }}>
+          <span>⚡ Candidate GitHub:</span>
+          <strong style={{ color: "var(--text)" }}>{resumeData.detectedGithub.url}</strong>
+        </div>
+      )}
+
       {/* ── Toolbar ── */}
       <div style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -273,7 +292,7 @@ export default function StepSkillClaims({ resumeData, onNext, onBack }) {
         <button id="step2-next-btn" className="btn btn-primary btn-lg"
           onClick={() => onNext({ skills: chosen })}
           disabled={selected.size === 0}>
-          Connect GitHub →
+          Continue to GitHub →
         </button>
       </div>
     </div>

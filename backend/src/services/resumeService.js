@@ -360,8 +360,54 @@ function extractSkillClaims(text) {
     return claims;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// GITHUB PROFILE DETECTOR
+// Extracts GitHub username & URL directly from resume text.
+// ─────────────────────────────────────────────────────────────────────────────
+function extractGitHubInfo(text) {
+    if (!text || typeof text !== "string") return null;
+
+    const reserved = new Set([
+        "login", "join", "about", "pricing", "features", "topics", "trending",
+        "contact", "explore", "marketplace", "enterprise", "settings", "pulls",
+        "issues", "site", "security", "customer-stories", "readme", "home",
+        "notifications", "new", "search", "orgs", "organizations"
+    ]);
+
+    // Pattern 1: URL format — github.com/<username>
+    // Handles https://github.com/username, github.com/username/project (grabs username)
+    const urlPattern = /(?:https?:\/\/)?(?:www\.)?github\.com\/([a-zA-Z0-9](?:[a-zA-Z0-9]|-(?=[a-zA-Z0-9])){0,38})/gi;
+    let match;
+    while ((match = urlPattern.exec(text)) !== null) {
+        const username = match[1];
+        if (!reserved.has(username.toLowerCase())) {
+            return {
+                username,
+                url: `https://github.com/${username}`,
+                source: match[0]
+            };
+        }
+    }
+
+    // Pattern 2: Label format — "GitHub: username" or "GitHub - @username" or "gh: username"
+    const labelPattern = /(?:github|git\s*hub|gh)\s*[:\-–|•]\s*@?([a-zA-Z0-9](?:[a-zA-Z0-9]|-(?=[a-zA-Z0-9])){0,38})\b/gi;
+    while ((match = labelPattern.exec(text)) !== null) {
+        const username = match[1];
+        if (!reserved.has(username.toLowerCase())) {
+            return {
+                username,
+                url: `https://github.com/${username}`,
+                source: match[0]
+            };
+        }
+    }
+
+    return null;
+}
+
 module.exports = {
     extractResumeText,
     extractResumeSections,
     extractSkillClaims,
+    extractGitHubInfo,
 };

@@ -2,17 +2,20 @@
 const GITHUB_API = "https://api.github.com";
 
 async function githubRequest(url, accessToken) {
-     
-    const response = await fetch(`${GITHUB_API}${url}`, {
-        headers: {
-            Accept: "application/vnd.github+json",
-            Authorization: `Bearer ${accessToken}`
-        }
-    });
+    const token = (accessToken || process.env.GITHUB_TOKEN || "").trim();
+    const headers = {
+        Accept: "application/vnd.github+json",
+        "User-Agent": "SkillForge-Verification-Platform"
+    };
+
+    if (token) {
+        headers.Authorization = `Bearer ${token}`;
+    }
+
+    const response = await fetch(`${GITHUB_API}${url}`, { headers });
 
     if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-
         throw new Error(
             `GitHub API error: ${response.status} ${
                 errorData.message || ""
@@ -23,26 +26,38 @@ async function githubRequest(url, accessToken) {
     return response.json();
 }
 
+async function getGitHubUserProfile(username, accessToken) {
+    return githubRequest(`/users/${encodeURIComponent(username)}`, accessToken);
+}
+
 async function getUserRepositories(username, accessToken) {
-    // Use the authenticated /user/repos endpoint so private repos are included.
-    // Falls back to the public /users/:username/repos if no token.
-    if (!accessToken) {
-        return githubRequest(`/users/${username}/repos?sort=pushed&per_page=100`, accessToken);
+    // If accessToken is provided, check if the authenticated user matches the target username
+    let useAuthUserEndpoint = false;
+    if (accessToken) {
+        try {
+            const authUser = await githubRequest("/user", accessToken);
+            if (authUser.login?.toLowerCase() === username?.toLowerCase()) {
+                useAuthUserEndpoint = true;
+            }
+        } catch {
+            useAuthUserEndpoint = false;
+        }
     }
 
     const allRepos = [];
     let page = 1;
 
     while (true) {
-        const repos = await githubRequest(
-            `/user/repos?sort=pushed&per_page=100&page=${page}&affiliation=owner`,
-            accessToken
-        );
-        if (repos.length === 0) break;
+        const path = useAuthUserEndpoint
+            ? `/user/repos?sort=pushed&per_page=100&page=${page}&affiliation=owner`
+            : `/users/${encodeURIComponent(username)}/repos?sort=pushed&per_page=100&page=${page}`;
+
+        const repos = await githubRequest(path, accessToken);
+        if (!Array.isArray(repos) || repos.length === 0) break;
         allRepos.push(...repos);
         page++;
-        // Safety cap — 500 repos is more than enough
-        if (allRepos.length >= 500) break;
+        // Safety cap — 300 repos is more than enough
+        if (allRepos.length >= 300 || repos.length < 100) break;
     }
 
     return allRepos;
@@ -643,6 +658,7 @@ function calculateContributionDepth(
 }
 
 module.exports = {
+    getGitHubUserProfile,
     getUserRepositories,
     getRepositoryCommits,
     getCommitDetails,
@@ -654,5 +670,4 @@ module.exports = {
     analyzeTechnologies,
     matchTechnologiesToFiles,
     calculateContributionDepth
-
 };

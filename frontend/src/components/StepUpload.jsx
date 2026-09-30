@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { uploadResume } from "../api.js";
 
 export default function StepUpload({ onNext }) {
   const [file, setFile]       = useState(null);
@@ -18,7 +19,6 @@ export default function StepUpload({ onNext }) {
     setLoading(true);
     setError(null);
     try {
-      const { uploadResume } = await import("../api.js");
       const result = await uploadResume(file);
       onNext({ resumeData: result, file });
     } catch (err) {

@@ -8,7 +8,7 @@ import StepResults     from "./components/StepResults.jsx";
 const STEPS = [
   { num: "01", name: "Resume",     desc: "Upload PDF" },
   { num: "02", name: "Skills",     desc: "Review claims" },
-  { num: "03", name: "GitHub",     desc: "Connect account" },
+  { num: "03", name: "GitHub",     desc: "Profile / URL" },
   { num: "04", name: "Scope",      desc: "Verify mode" },
   { num: "05", name: "Results",    desc: "Verification" },
 ];
@@ -16,7 +16,7 @@ const STEPS = [
 const BREADCRUMBS = [
   "resume / upload",
   "resume / skills",
-  "github / connect",
+  "github / profile",
   "github / scope",
   "verification / results",
 ];
@@ -70,7 +70,7 @@ export default function App() {
     switch (step) {
       case 0: return <StepUpload onNext={advance} />;
       case 1: return <StepSkillClaims resumeData={appState.resumeData} onNext={advance} onBack={back} />;
-      case 2: return <StepGitHub onNext={advance} onBack={back} />;
+      case 2: return <StepGitHub detectedGithub={appState.resumeData?.detectedGithub} onNext={advance} onBack={back} />;
       case 3: return <StepRepository githubUser={appState.githubUser} accessToken={appState.accessToken} onNext={advance} onBack={back} />;
       case 4: return <StepResults
                         githubUser={appState.githubUser}
