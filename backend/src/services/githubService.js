@@ -10,6 +10,12 @@ async function githubRequest(url, accessToken) {
 
     if (token) {
         headers.Authorization = `Bearer ${token}`;
+    } else if (process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET) {
+        // Authenticate with server OAuth app credentials to unlock 5,000 req/hr rate limit
+        const basicAuth = Buffer.from(
+            `${process.env.GITHUB_CLIENT_ID}:${process.env.GITHUB_CLIENT_SECRET}`
+        ).toString("base64");
+        headers.Authorization = `Basic ${basicAuth}`;
     }
 
     const response = await fetch(`${GITHUB_API}${url}`, { headers });
