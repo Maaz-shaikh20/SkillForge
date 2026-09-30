@@ -368,15 +368,24 @@ function extractGitHubInfo(text) {
     if (!text || typeof text !== "string") return null;
 
     const reserved = new Set([
+        // GitHub internal / common routes
         "login", "join", "about", "pricing", "features", "topics", "trending",
         "contact", "explore", "marketplace", "enterprise", "settings", "pulls",
         "issues", "site", "security", "customer-stories", "readme", "home",
-        "notifications", "new", "search", "orgs", "organizations"
+        "notifications", "new", "search", "orgs", "organizations", "git",
+        "dashboard", "repository", "repositories", "account", "profile",
+
+        // Other tech / resume platforms commonly listed beside GitHub
+        "leetcode", "linkedin", "hackerrank", "codeforces", "codechef",
+        "kaggle", "geeksforgeeks", "gfg", "stackoverflow", "hackerearth",
+        "medium", "dev", "portfolio", "website", "email", "phone", "mobile",
+        "resume", "cv", "projects", "experience", "skills", "education",
+        "null", "undefined", "user", "username", "link", "links"
     ]);
 
     // Pattern 1: URL format — github.com/<username>
     // Handles https://github.com/username, github.com/username/project (grabs username)
-    const urlPattern = /(?:https?:\/\/)?(?:www\.)?github\.com\/([a-zA-Z0-9](?:[a-zA-Z0-9]|-(?=[a-zA-Z0-9])){0,38})/gi;
+    const urlPattern = /(?:https?:\/\/)?(?:www\.)?github\.com\/([a-zA-Z0-9](?:[a-zA-Z0-9]|-(?=[a-zA-Z0-9])){0,38})\b/gi;
     let match;
     while ((match = urlPattern.exec(text)) !== null) {
         const username = match[1];
@@ -389,8 +398,9 @@ function extractGitHubInfo(text) {
         }
     }
 
-    // Pattern 2: Label format — "GitHub: username" or "GitHub - @username" or "gh: username"
-    const labelPattern = /(?:github|git\s*hub|gh)\s*[:\-–|•]\s*@?([a-zA-Z0-9](?:[a-zA-Z0-9]|-(?=[a-zA-Z0-9])){0,38})\b/gi;
+    // Pattern 2: Label format on the SAME LINE ONLY (horizontal whitespace only, no newlines)
+    // e.g. "GitHub: Maaz-shaikh20" or "GitHub - @Maaz-shaikh20"
+    const labelPattern = /(?:github|git\s*hub|gh)[^\S\r\n]*[:\-–|•][^\S\r\n]*@?([a-zA-Z0-9](?:[a-zA-Z0-9]|-(?=[a-zA-Z0-9])){0,38})\b/gi;
     while ((match = labelPattern.exec(text)) !== null) {
         const username = match[1];
         if (!reserved.has(username.toLowerCase())) {
