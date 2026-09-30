@@ -29,10 +29,19 @@ export default function StepGitHub({ detectedGithub, initialOauthToken, oauthErr
     if (initialOauthToken && !oauthVerifiedRef.current) {
       oauthVerifiedRef.current = true;
       verifyOAuth(initialOauthToken);
-    } else if (detectedGithub?.username && !githubUser) {
-      fetchProfile(detectedGithub.username);
     }
   }, [initialOauthToken]); // eslint-disable-line
+
+  // Automatically pre-fill and fetch profile when candidate GitHub is detected from resume
+  useEffect(() => {
+    if (detectedGithub?.username || detectedGithub?.url) {
+      const val = detectedGithub.url || detectedGithub.username;
+      setInputUrl(val);
+      if (!githubUser && !initialOauthToken) {
+        fetchProfile(detectedGithub.username);
+      }
+    }
+  }, [detectedGithub?.username, detectedGithub?.url]); // eslint-disable-line
 
   async function verifyOAuth(token) {
     setOauthLoading(true);

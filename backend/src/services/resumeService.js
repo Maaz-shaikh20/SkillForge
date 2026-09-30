@@ -4,8 +4,19 @@
 const pdfParse = require("pdf-parse");
 
 async function extractResumeText(buffer) {
-    const result = await pdfParse(buffer);
-    return result.text;
+    // Suppress noisy pdf.js TT font hinting warnings (e.g. Warning: TT: undefined function: 32)
+    const originalWarn = console.warn;
+    console.warn = (...args) => {
+        if (typeof args[0] === "string" && args[0].includes("TT:")) return;
+        originalWarn.apply(console, args);
+    };
+
+    try {
+        const result = await pdfParse(buffer);
+        return result.text;
+    } finally {
+        console.warn = originalWarn;
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -364,8 +375,8 @@ function extractSkillClaims(text) {
 // GITHUB PROFILE DETECTOR
 // Extracts GitHub username & URL directly from resume text.
 // ─────────────────────────────────────────────────────────────────────────────
-function extractGitHubInfo(text) {
-    if (!text || typeof text !== "string") return null;
+function extractGitHubInfo(text, buffer = null) {
+    if (!text && !buffer) return null;
 
     const reserved = new Set([
         // GitHub internal / common routes
@@ -383,32 +394,79 @@ function extractGitHubInfo(text) {
         "null", "undefined", "user", "username", "link", "links"
     ]);
 
-    // Pattern 1: URL format — github.com/<username>
-    // Handles https://github.com/username, github.com/username/project (grabs username)
-    const urlPattern = /(?:https?:\/\/)?(?:www\.)?github\.com\/([a-zA-Z0-9](?:[a-zA-Z0-9]|-(?=[a-zA-Z0-9])){0,38})\b/gi;
-    let match;
-    while ((match = urlPattern.exec(text)) !== null) {
-        const username = match[1];
-        if (!reserved.has(username.toLowerCase())) {
-            return {
-                username,
-                url: `https://github.com/${username}`,
-                source: match[0]
-            };
+    function isValid(u) {
+        if (!u) return false;
+        const clean = u.replace(/[\/\)\s,;]+$/, "");
+        if (clean.length < 1 || clean.length > 39) return false;
+        return !reserved.has(clean.toLowerCase());
+    }
+
+    // 1. Text URL pattern
+    if (text) {
+        const urlPattern = /(?:https?:\/\/)?(?:www\.)?github\.com\/([a-zA-Z0-9](?:[a-zA-Z0-9]|-(?=[a-zA-Z0-9])){0,38})\b/gi;
+        let match;
+        while ((match = urlPattern.exec(text)) !== null) {
+            if (isValid(match[1])) {
+                return {
+                    username: match[1],
+                    url: `https://github.com/${match[1]}`,
+                    source: match[0]
+                };
+            }
+        }
+
+        // 2. Loose URL pattern (spaces from PDF font kerning: github . com / username)
+        const loosePattern = /github\s*\.\s*com\s*\/\s*([a-zA-Z0-9_-]{1,39})/gi;
+        while ((match = loosePattern.exec(text)) !== null) {
+            if (isValid(match[1])) {
+                return {
+                    username: match[1],
+                    url: `https://github.com/${match[1]}`,
+                    source: match[0]
+                };
+            }
+        }
+
+        // 3. Label pattern on the same line (GitHub: username, GitHub - username)
+        const labelPattern = /(?:github|git\s*hub|gh)[^\S\r\n]*[:\-–|•][^\S\r\n]*@?([a-zA-Z0-9](?:[a-zA-Z0-9]|-(?=[a-zA-Z0-9])){0,38})\b/gi;
+        while ((match = labelPattern.exec(text)) !== null) {
+            if (isValid(match[1])) {
+                return {
+                    username: match[1],
+                    url: `https://github.com/${match[1]}`,
+                    source: match[0]
+                };
+            }
         }
     }
 
-    // Pattern 2: Label format on the SAME LINE ONLY (horizontal whitespace only, no newlines)
-    // e.g. "GitHub: Maaz-shaikh20" or "GitHub - @Maaz-shaikh20"
-    const labelPattern = /(?:github|git\s*hub|gh)[^\S\r\n]*[:\-–|•][^\S\r\n]*@?([a-zA-Z0-9](?:[a-zA-Z0-9]|-(?=[a-zA-Z0-9])){0,38})\b/gi;
-    while ((match = labelPattern.exec(text)) !== null) {
-        const username = match[1];
-        if (!reserved.has(username.toLowerCase())) {
-            return {
-                username,
-                url: `https://github.com/${username}`,
-                source: match[0]
-            };
+    // 4. Raw PDF Buffer scan (for clickable links embedded in PDF annotations/icons)
+    if (buffer && Buffer.isBuffer(buffer)) {
+        const str = buffer.toString("binary");
+
+        // Clickable URI annotation: /URI (https://github.com/<username>)
+        const uriPattern = /\/URI\s*\((?:https?:\/\/)?(?:www\.)?github\.com\/([a-zA-Z0-9_-]{1,39})/gi;
+        let match;
+        while ((match = uriPattern.exec(str)) !== null) {
+            if (isValid(match[1])) {
+                return {
+                    username: match[1],
+                    url: `https://github.com/${match[1]}`,
+                    source: "pdf-annotation"
+                };
+            }
+        }
+
+        // Raw stream occurrences
+        const rawPattern = /github\.com\/([a-zA-Z0-9_-]{1,39})/gi;
+        while ((match = rawPattern.exec(str)) !== null) {
+            if (isValid(match[1])) {
+                return {
+                    username: match[1],
+                    url: `https://github.com/${match[1]}`,
+                    source: "pdf-stream"
+                };
+            }
         }
     }
 

@@ -37,7 +37,7 @@ router.post(
     extractSkillClaims(text);
 
             const detectedGithub =
-    extractGitHubInfo(text);
+    extractGitHubInfo(text, req.file.buffer);
 
             res.json({
                 filename: req.file.originalname,
