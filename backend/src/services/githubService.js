@@ -204,41 +204,6 @@ async function getRepositoryTree(owner, repo, accessToken) {
 }
 
 
-// async function getFileContent(
-//     owner,
-//     repo,
-//     path,
-//     accessToken,
-//     ref
-// ) {
-//     let url =
-//         `/repos/${owner}/${repo}/contents/${encodeURIComponent(path)}`;
-
-//     if (ref) {
-//         url += `?ref=${encodeURIComponent(ref)}`;
-//     }
-//     console.log(
-//     "GET FILE:",
-//     url,
-//     "REF:",
-//     ref
-// );
-
-//     const file = await githubRequest(
-//         url,
-//         accessToken
-//     );
-
-//     if (!file.content) {
-//         return "";
-//     }
-
-//     return Buffer.from(
-//         file.content,
-//         "base64"
-//     ).toString("utf-8");
-// }
-
 async function getFileContent(
     owner,
     repo,
@@ -253,8 +218,6 @@ async function getFileContent(
 
     const endpoint =
         `/repos/${owner}/${repo}/contents/${encodedPath}?ref=${encodeURIComponent(ref)}`;
-
-    console.log("GET FILE:", endpoint);
 
     try {
         const file = await githubRequest(
@@ -272,11 +235,6 @@ async function getFileContent(
         ).toString("utf-8");
 
     } catch (error) {
-        console.error(
-            `Failed to read ${path}:`,
-            error.message
-        );
-
         return "";
     }
 }
@@ -422,9 +380,7 @@ function detectTechnologies(files, configFiles) {
                 }
 
             } catch (error) {
-                console.log(
-                    `Invalid package.json: ${filePath}`
-                );
+                // Silently skip malformed package.json
             }
         }
 

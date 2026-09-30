@@ -390,8 +390,6 @@ async function verifySkillsInRepository(
     candidateUsername,
     accessToken
 ) {
-    console.time("skill-verification");
-
     // =========================================================
     // 1. GET REPOSITORY TREE ONCE
     // =========================================================
@@ -506,11 +504,6 @@ async function verifySkillsInRepository(
                 };
 
             } catch (error) {
-                console.error(
-                    `Failed to read ${filePath}:`,
-                    error.message
-                );
-
                 return null;
             }
         }),
@@ -778,8 +771,6 @@ async function verifySkillsInRepository(
         });
     }
 
-    console.timeEnd("skill-verification");
-
     return results;
 }
 
@@ -828,8 +819,6 @@ async function verifySkillsAcrossAllRepositories(
     accessToken,
     onProgress = () => {}
 ) {
-    console.time("all-repos-verification");
-
     // ----------------------------------------------------------
     // 1. FETCH ALL REPOS (uses /user/repos so private repos too)
     // ----------------------------------------------------------
@@ -973,7 +962,6 @@ async function verifySkillsAcrossAllRepositories(
         };
     });
 
-    console.timeEnd("all-repos-verification");
     return { results, reposScanned, reposAnalyzed };
 }
 

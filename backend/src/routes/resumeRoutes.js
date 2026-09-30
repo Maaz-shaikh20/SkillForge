@@ -48,15 +48,13 @@ router.post(
             });
 
         } catch (error) {
-    console.error("RESUME EXTRACTION ERROR:");
-    console.error(error);
-    console.error(error.stack);
+            console.error("RESUME EXTRACTION ERROR:", error.message);
 
-    res.status(500).json({
-        message: "Failed to extract resume text",
-        error: error.message
-    });
-}
+            res.status(500).json({
+                message: "Failed to extract resume text",
+                error: error.message
+            });
+        }
     }
 );
 
