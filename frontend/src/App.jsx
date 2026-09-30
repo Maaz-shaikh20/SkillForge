@@ -1,9 +1,69 @@
-import { useState } from "react";
+import { useState, useEffect, Component } from "react";
 import StepUpload      from "./components/StepUpload.jsx";
 import StepSkillClaims from "./components/StepSkillClaims.jsx";
 import StepGitHub      from "./components/StepGitHub.jsx";
 import StepRepository  from "./components/StepRepository.jsx";
 import StepResults     from "./components/StepResults.jsx";
+
+// ── Error Boundary to prevent any unhandled error from causing a blank screen ──
+class ErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error("SkillForge ErrorBoundary caught:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background: "var(--bg)",
+          color: "var(--text)",
+          padding: 24,
+          fontFamily: "var(--font-body)"
+        }}>
+          <div style={{
+            maxWidth: 500,
+            padding: 32,
+            background: "var(--surface)",
+            border: "1px solid var(--border-2)",
+            borderRadius: "var(--r-lg)",
+            textAlign: "center",
+            boxShadow: "0 10px 40px rgba(0,0,0,0.5)"
+          }}>
+            <h2 style={{ color: "var(--red)", marginBottom: 12, fontSize: "1.25rem" }}>
+              Something went wrong
+            </h2>
+            <p style={{ color: "var(--text-2)", marginBottom: 20, fontSize: "0.875rem", lineHeight: 1.6 }}>
+              {this.state.error?.message || "An unexpected error occurred while rendering the page."}
+            </p>
+            <button
+              className="btn btn-primary"
+              onClick={() => {
+                sessionStorage.removeItem("sf_pre_oauth_state");
+                window.location.href = window.location.pathname;
+              }}
+            >
+              ↺ Restart SkillForge
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 const STEPS = [
   { num: "01", name: "Resume",     desc: "Upload PDF" },
@@ -21,45 +81,57 @@ const BREADCRUMBS = [
   "verification / results",
 ];
 
-export default function App() {
-  // When GitHub OAuth redirects back, the URL contains ?accessToken=...
-  // Restore whatever state was saved before the OAuth redirect so skills
-  // (and resumeData) survive the full-page reload.
-  const oauthToken = new URLSearchParams(window.location.search).get("accessToken") || "";
+function MainApp() {
+  // Read any query parameters from OAuth redirect
+  const searchParams = new URLSearchParams(window.location.search);
+  const rawToken     = searchParams.get("accessToken");
+  const rawError     = searchParams.get("oauthError");
 
+  const oauthToken = (rawToken && rawToken !== "undefined" && rawToken !== "null") ? rawToken : "";
+  const oauthError = (rawError && rawError !== "undefined" && rawError !== "null") ? rawError : "";
+
+  // Initial step: If coming back from OAuth, land on Step 2 (GitHub)
   const [step, setStep] = useState(() => {
-    if (oauthToken) {
-      // Coming back from OAuth — jump to Step 2 (GitHub), state will be restored below
+    if (oauthToken || oauthError) {
       return 2;
     }
     return 0;
   });
 
+  // Restore pre-OAuth state from sessionStorage
   const [appState, setAppState] = useState(() => {
-    if (oauthToken) {
-      // Restore pre-OAuth state (skills, resumeData) from sessionStorage
+    let base = {};
+    if (oauthToken || oauthError) {
       try {
         const saved = sessionStorage.getItem("sf_pre_oauth_state");
-        if (saved) return JSON.parse(saved);
-      } catch { /* ignore parse errors */ }
+        if (saved) base = JSON.parse(saved);
+      } catch { /* ignore */ }
     }
-    return {};
+    if (oauthToken) {
+      base.accessToken = oauthToken;
+    }
+    return base;
   });
+
+  // Clean query params from the browser address bar immediately so they don't linger
+  useEffect(() => {
+    if (rawToken || rawError) {
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []); // eslint-disable-line
 
   function advance(newData = {}) {
     setAppState(prev => {
       const next = { ...prev, ...newData };
-      // Persist to sessionStorage so skills survive the OAuth redirect
       try { sessionStorage.setItem("sf_pre_oauth_state", JSON.stringify(next)); } catch { /* ignore */ }
       return next;
     });
-    setStep(s => s + 1);
+    setStep(s => Math.min(4, s + 1));
   }
 
   function back() { setStep(s => Math.max(0, s - 1)); }
 
   function restart() {
-    // Clear the accessToken from the URL and wipe saved state
     window.history.replaceState({}, "", window.location.pathname);
     sessionStorage.removeItem("sf_pre_oauth_state");
     setAppState({});
@@ -70,19 +142,32 @@ export default function App() {
     switch (step) {
       case 0: return <StepUpload onNext={advance} />;
       case 1: return <StepSkillClaims resumeData={appState.resumeData} onNext={advance} onBack={back} />;
-      case 2: return <StepGitHub detectedGithub={appState.resumeData?.detectedGithub} onNext={advance} onBack={back} />;
-      case 3: return <StepRepository githubUser={appState.githubUser} accessToken={appState.accessToken} onNext={advance} onBack={back} />;
+      case 2: return <StepGitHub
+                        detectedGithub={appState.resumeData?.detectedGithub}
+                        initialOauthToken={oauthToken}
+                        oauthError={oauthError}
+                        onNext={advance}
+                        onBack={back}
+                      />;
+      case 3: return <StepRepository
+                        githubUser={appState.githubUser}
+                        accessToken={appState.accessToken}
+                        onNext={advance}
+                        onBack={back}
+                      />;
       case 4: return <StepResults
                         githubUser={appState.githubUser}
                         accessToken={appState.accessToken}
                         repo={appState.repo}
                         skills={appState.skills}
-                        verificationMode={appState.verificationMode || "single"}
+                        verificationMode={appState.verificationMode || "all"}
                         onRestart={restart}
                       />;
-      default: return null;
+      default: return <StepUpload onNext={advance} />;
     }
   }
+
+  const safeStep = Math.min(Math.max(0, step), STEPS.length - 1);
 
   return (
     <div className="app-shell">
@@ -107,16 +192,16 @@ export default function App() {
               key={s.name}
               className={[
                 "step-item",
-                i === step ? "step-item--active" : "",
-                i < step   ? "step-item--done"   : ""
+                i === safeStep ? "step-item--active" : "",
+                i < safeStep   ? "step-item--done"   : ""
               ].join(" ")}
             >
               <div className={[
                 "step-dot",
-                i === step ? "step-dot--active" : "",
-                i < step   ? "step-dot--done"   : ""
+                i === safeStep ? "step-dot--active" : "",
+                i < safeStep   ? "step-dot--done"   : ""
               ].join(" ")}>
-                {i < step && (
+                {i < safeStep && (
                   <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
                     <path d="M2 5L4 7L8 3" stroke="#060c1a" strokeWidth="1.5" strokeLinecap="round"/>
                   </svg>
@@ -142,7 +227,7 @@ export default function App() {
         {/* Top bar */}
         <div className="main-topbar">
           <div className="topbar-breadcrumb">
-            skillforge / <span>{BREADCRUMBS[step]}</span>
+            skillforge / <span>{BREADCRUMBS[safeStep] || "verification"}</span>
           </div>
           <div className="topbar-status">
             <div className="status-dot" />
@@ -156,5 +241,13 @@ export default function App() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <ErrorBoundary>
+      <MainApp />
+    </ErrorBoundary>
   );
 }

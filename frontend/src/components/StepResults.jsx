@@ -124,6 +124,16 @@ export default function StepResults({
       setLoading(false);
       return;
     }
+    if (!githubUser?.login) {
+      setError("GitHub candidate profile is missing. Please restart and select a GitHub profile.");
+      setLoading(false);
+      return;
+    }
+    if (!isAllMode && (!repo?.owner?.login || !repo?.name)) {
+      setError("Repository information is missing. Please select a repository.");
+      setLoading(false);
+      return;
+    }
     if (isAllMode) {
       verifySkillsAllRepos(githubUser.login, skillNames, accessToken)
         .then(data => {
@@ -152,8 +162,21 @@ export default function StepResults({
     </div>
   );
 
+  if (!results) {
+    return (
+      <div className="fade-up">
+        <p className="eyebrow">Step 05 — Results</p>
+        <div className="error-block" style={{ marginBottom: 24 }}>No verification results were generated.</div>
+        <button id="results-restart-btn" className="btn btn-ghost" onClick={onRestart}>↺ Start Over</button>
+      </div>
+    );
+  }
+
   const counts = { SUPPORTED: 0, CODE_EVIDENCE: 0, REPOSITORY_EVIDENCE: 0, NO_EVIDENCE: 0 };
-  results.forEach(r => { const s = r.verification?.status || "NO_EVIDENCE"; counts[s]++; });
+  (results || []).forEach(r => { const s = r.verification?.status || "NO_EVIDENCE"; counts[s]++; });
+
+  const candidateLogin = githubUser?.login || "candidate";
+  const candidateName  = githubUser?.name || candidateLogin;
 
   return (
     <div className="fade-up">
@@ -163,14 +186,14 @@ export default function StepResults({
       {/* ── Who/repo bar ── */}
       <div className="results-bar">
         <div className="results-bar__avatar">
-          {githubUser.avatar_url
+          {githubUser?.avatar_url
             ? <img src={githubUser.avatar_url} alt="avatar" />
             : <div style={{ width: "100%", height: "100%", background: "var(--cyan-dim)", display: "flex", alignItems: "center", justifyContent: "center" }}>👤</div>
           }
         </div>
         <div style={{ flex: 1 }}>
-          <div className="results-bar__name">{githubUser.name || githubUser.login}</div>
-          <div className="results-bar__meta">@{githubUser.login}</div>
+          <div className="results-bar__name">{candidateName}</div>
+          <div className="results-bar__meta">@{candidateLogin}</div>
         </div>
 
         {isAllMode ? (

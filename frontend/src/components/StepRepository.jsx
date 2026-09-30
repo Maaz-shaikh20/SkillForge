@@ -20,13 +20,26 @@ export default function StepRepository({ githubUser, accessToken, onNext, onBack
 
   // Lazy-load repo list only when user switches to "single" mode
   useEffect(() => {
-    if (mode !== "single" || repos.length > 0) return;
+    if (mode !== "single" || repos.length > 0 || !githubUser?.login) return;
     setLoading(true);
     getUserRepositories(githubUser.login, accessToken)
       .then(data => setRepos([...data].sort((a, b) => new Date(b.pushed_at) - new Date(a.pushed_at))))
       .catch(err => setError(err.message))
       .finally(() => setLoading(false));
-  }, [mode]); // eslint-disable-line
+  }, [mode, githubUser?.login]); // eslint-disable-line
+
+  if (!githubUser?.login) {
+    return (
+      <div className="fade-up">
+        <p className="eyebrow">Step 04 — Scope</p>
+        <h1 className="page-title">GitHub Profile <em>Missing</em></h1>
+        <div className="error-block" style={{ margin: "20px 0" }}>
+          No GitHub profile connected. Please go back and confirm the profile first.
+        </div>
+        <button id="step4-back-btn" className="btn btn-ghost" onClick={onBack}>← Back to GitHub</button>
+      </div>
+    );
+  }
 
   const filtered = repos.filter(r =>
     r.name.toLowerCase().includes(search.toLowerCase()) ||

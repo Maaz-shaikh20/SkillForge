@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { getGitHubUserProfile, redirectToGitHubLogin } from "../api.js";
 
 function extractUsername(val) {
@@ -11,26 +11,52 @@ function extractUsername(val) {
   return clean;
 }
 
-export default function StepGitHub({ detectedGithub, onNext, onBack }) {
+export default function StepGitHub({ detectedGithub, initialOauthToken, oauthError, onNext, onBack }) {
   const [inputUrl, setInputUrl]         = useState(detectedGithub?.url || detectedGithub?.username || "");
   const [githubUser, setGithubUser]     = useState(null);
   const [loading, setLoading]           = useState(false);
-  const [error, setError]               = useState(null);
+  const [oauthLoading, setOauthLoading] = useState(!!initialOauthToken);
+  const [error, setError]               = useState(oauthError ? decodeURIComponent(oauthError) : null);
   const [showPrivateAuth, setShowPrivateAuth] = useState(false);
   const [patToken, setPatToken]         = useState("");
   const [patLoading, setPatLoading]     = useState(false);
   const [patError, setPatError]         = useState(null);
 
-  // Pick up token from OAuth callback query string if present
-  const oauthToken = new URLSearchParams(window.location.search).get("accessToken") || "";
+  const oauthVerifiedRef = useRef(false);
 
+  // If returning from OAuth redirect with an access token, verify and load account
   useEffect(() => {
-    if (oauthToken) {
-      verifyOAuth(oauthToken);
-    } else if (detectedGithub?.username) {
+    if (initialOauthToken && !oauthVerifiedRef.current) {
+      oauthVerifiedRef.current = true;
+      verifyOAuth(initialOauthToken);
+    } else if (detectedGithub?.username && !githubUser) {
       fetchProfile(detectedGithub.username);
     }
-  }, []); // eslint-disable-line
+  }, [initialOauthToken]); // eslint-disable-line
+
+  async function verifyOAuth(token) {
+    setOauthLoading(true);
+    setError(null);
+    try {
+      const resp = await fetch("https://api.github.com/user", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/vnd.github+json"
+        }
+      });
+      if (!resp.ok) {
+        throw new Error("GitHub OAuth session expired or invalid. Please sign in again.");
+      }
+      const user = await resp.json();
+      setGithubUser(user);
+      // Advance to Step 4 (Repository selection) with the authenticated session
+      onNext({ accessToken: token, githubUser: user });
+    } catch (err) {
+      setError(err.message || "Failed to authenticate with GitHub");
+    } finally {
+      setOauthLoading(false);
+    }
+  }
 
   async function fetchProfile(forcedName) {
     const raw = forcedName || extractUsername(inputUrl);
@@ -51,24 +77,6 @@ export default function StepGitHub({ detectedGithub, onNext, onBack }) {
     }
   }
 
-  async function verifyOAuth(token) {
-    setLoading(true);
-    setError(null);
-    try {
-      const resp = await fetch("https://api.github.com/user", {
-        headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json" }
-      });
-      if (!resp.ok) throw new Error("Invalid OAuth token session.");
-      const user = await resp.json();
-      setGithubUser(user);
-      onNext({ accessToken: token, githubUser: user });
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  }
-
   async function verifyPAT() {
     const t = patToken.trim();
     if (!t) { setPatError("Please enter a Personal Access Token."); return; }
@@ -80,6 +88,7 @@ export default function StepGitHub({ detectedGithub, onNext, onBack }) {
       });
       if (!resp.ok) throw new Error("Invalid token — check it has repo + read:user scopes.");
       const user = await resp.json();
+      setGithubUser(user);
       onNext({ accessToken: t, githubUser: user });
     } catch (err) {
       setPatError(err.message);
@@ -94,6 +103,22 @@ export default function StepGitHub({ detectedGithub, onNext, onBack }) {
       githubUser,
       accessToken: null // Public repository verification mode
     });
+  }
+
+  // Visual loading screen while OAuth token is being confirmed
+  if (oauthLoading) {
+    return (
+      <div className="fade-up">
+        <p className="eyebrow">Step 03 — GitHub</p>
+        <div className="loading-block" style={{ padding: "60px 0" }}>
+          <div className="spinner spinner--lg" />
+          <p className="loading-title">Connecting GitHub account…</p>
+          <p style={{ color: "var(--text-3)", fontSize: "0.85rem", marginTop: 8 }}>
+            Verifying your OAuth session with GitHub
+          </p>
+        </div>
+      </div>
+    );
   }
 
   return (

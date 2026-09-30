@@ -48,17 +48,24 @@ router.get("/github/callback", async (req, res) => {
         }
 
         const data = await response.json();
-
-        // Redirect the browser back to the frontend with the token as a query param.
-        // StepGitHub.jsx reads it from window.location.search (?accessToken=...).
         const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
-        res.redirect(`${frontendUrl}?accessToken=${data.access_token}`);
-    } catch (error) {
-        console.error(error.message);
 
-        res.status(500).json({
-            message: "GitHub authentication failed"
-        });
+        if (data.error || !data.access_token) {
+            console.error("GitHub OAuth error:", data.error, data.error_description);
+            return res.redirect(
+                `${frontendUrl}?oauthError=${encodeURIComponent(
+                    data.error_description || data.error || "Failed to retrieve access token"
+                )}`
+            );
+        }
+
+        res.redirect(`${frontendUrl}?accessToken=${encodeURIComponent(data.access_token)}`);
+    } catch (error) {
+        console.error("OAuth Callback exception:", error.message);
+        const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+        res.redirect(
+            `${frontendUrl}?oauthError=${encodeURIComponent(error.message || "GitHub authentication failed")}`
+        );
     }
 });
 
